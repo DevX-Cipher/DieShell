@@ -27,8 +27,8 @@ if '%errorlevel%' NEQ '0' (
     CD /D "%~dp0"
 :--------------------------------------
 
-set DOWNLOAD_URL=https://github.com/horsicq/DIE-engine/releases/download/3.08/die_win64_portable_3.08_x64.zip
-set DOWNLOAD_FILE=die_win64_portable_3.08_x64.zip
+set DOWNLOAD_URL=https://github.com/horsicq/DIE-engine/releases/download/3.10/die_win64_portable_3.10_x64.zip
+set DOWNLOAD_FILE=die_win64_portable_3.10_x64.zip
 set EXTRACT_FOLDER=Die
 set INNER_FOLDER=Die
 
@@ -46,8 +46,8 @@ echo Cleanup: Removing downloaded ZIP file...
 del %DOWNLOAD_FILE%
 
 echo Process completed.
-set DOWNLOAD_URL=https://github.com/horsicq/die_library/releases/download/Beta/dielib_win64_portable_3.09_x64.zip
-set DOWNLOAD_FILE=dielib_win64_portable_3.09_x64.zip
+set DOWNLOAD_URL=https://github.com/horsicq/die_library/releases/download/Beta/dielib_win64_portable_0.1.0_x64.zip
+set DOWNLOAD_FILE=dielib_win64_portable_0.1.0_x64.zip
 
 :CheckFiles
 echo Checking if DieShell.dll exists...
