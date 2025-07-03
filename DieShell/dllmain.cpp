@@ -9,8 +9,6 @@
 #include <Shobjidl.h>
 #include <string>
 
-
-
 using namespace Microsoft::WRL;
 HMODULE g_hModule = nullptr;
 
@@ -19,6 +17,7 @@ HMODULE g_hModule = nullptr;
  * with the correct names and calling conventions. This ensures that the functions are available for 
  * external use without needing a .def file.
  */
+
 #pragma comment(linker, "/export:DllCanUnloadNow=DllCanUnloadNow")
 #pragma comment(linker, "/export:DllGetClassObject=DllGetClassObject")
 #pragma comment(linker, "/export:DllGetActivationFactory=DllGetActivationFactory")
@@ -32,6 +31,7 @@ HMODULE g_hModule = nullptr;
  * @param factory Output parameter to receive the activation factory.
  * @return HRESULT indicating success (S_OK) or failure.
  */
+
 extern "C" HRESULT DllGetActivationFactory(HSTRING activatableClassId, IActivationFactory** factory) {
     return Module<ModuleType::InProc>::GetModule().GetActivationFactory(activatableClassId, factory);
 }
@@ -67,6 +67,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     }
     return TRUE;
 }
+
 /**
  * @brief DieCommand class implements the IExplorerCommand and IObjectWithSite interfaces.
  */
@@ -80,6 +81,7 @@ public:
 * @param name Output parameter to receive the title.
 * @return HRESULT indicating success or failure.
 */
+
 	IFACEMETHODIMP GetTitle(_In_opt_ IShellItemArray* items, _Outptr_result_nullonfailure_ PWSTR* name) {
 		*name = nullptr;
 		auto title = wil::make_cotaskmem_string_nothrow(L"Die");
@@ -87,6 +89,7 @@ public:
 		*name = title.release();
 		return S_OK;
 	}
+
 /**
 * @brief GetIcon retrieves the icon path for the context menu item.
 *
@@ -96,6 +99,7 @@ public:
 * @param iconPath Output parameter to receive the icon path.
 * @return HRESULT indicating success (S_OK) or failure (E_FAIL).
 */
+
 	IFACEMETHODIMP GetIcon(_In_opt_ IShellItemArray* items, _Outptr_result_nullonfailure_ PWSTR* iconPath) {
 	*iconPath = nullptr;
 	PWSTR itemPath = nullptr;
@@ -128,6 +132,7 @@ public:
 
 	IFACEMETHODIMP GetToolTip(_In_opt_ IShellItemArray*, _Outptr_result_nullonfailure_ PWSTR* infoTip) { *infoTip = nullptr; return E_NOTIMPL; }
 	IFACEMETHODIMP GetCanonicalName(_Out_ GUID* guidCommandName) { *guidCommandName = GUID_NULL; return S_OK; }
+
 /**
 * @brief GetState retrieves the state of the context menu item.
 *
@@ -138,11 +143,13 @@ public:
 * @param cmdState Output parameter to receive the state of the context menu item (EXPCMDSTATE).
 * @return HRESULT indicating success (S_OK) or failure.
 */
+
     IFACEMETHODIMP GetState(_In_opt_ IShellItemArray* selection, _In_ BOOL okToBeSlow, _Out_ EXPCMDSTATE* cmdState)
     {
         *cmdState = ECS_ENABLED;
         return S_OK;
     }
+
 /**
 * @brief Invoke executes the context menu item action.
 *
@@ -207,6 +214,7 @@ IFACEMETHODIMP Invoke(_In_opt_ IShellItemArray* selection, _In_opt_ IBindCtx*) n
 
     return S_OK;
 }
+
 CATCH_RETURN();
 
 	IFACEMETHODIMP GetFlags(_Out_ EXPCMDFLAGS* flags) { *flags = ECF_DEFAULT; return S_OK; }
