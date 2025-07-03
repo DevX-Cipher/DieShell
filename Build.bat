@@ -35,7 +35,6 @@ set INNER_FOLDER=Die
 echo Creating folders %INNER_FOLDER%...
 mkdir %EXTRACT_FOLDER%\\%INNER_FOLDER%
 
-
 echo Downloading %DOWNLOAD_FILE%...
 curl -LJO %DOWNLOAD_URL%
 
@@ -89,7 +88,6 @@ if not defined thumbprint (
     exit /b 1
 )
 
-
 set "batch_dir=%~dp0"
 powershell -Command "Export-PfxCertificate -Cert Cert:\CurrentUser\My\%thumbprint% -FilePath '%batch_dir%Die.pfx' -Password (ConvertTo-SecureString -String '%password%' -Force -AsPlainText)"
 
@@ -132,7 +130,6 @@ certutil -addstore -f TrustedPeople certificate.cer
 :: Clean up
 del certificate.cer
 
-
 :: Delete the .pfx and .cer files
 del "%batch_dir%Die.pfx" /f /q
 
@@ -144,9 +141,6 @@ if /I "%user_input%" EQU "yes" (
     echo Installing...
     powershell -Command "Add-AppPackage -Path %MSIX_PATH%"
 )
-
-
-
 
 :: Wait for 10 seconds
 timeout /t 10
