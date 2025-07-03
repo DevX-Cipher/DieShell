@@ -1,15 +1,15 @@
-# DieShell
-DieShell Extension 
+# DiEShell
+DiEShell Extension 
 
 
 This repository contains a Windows Explorer context menu extension implemented as a dynamic link library (DLL) in C++. The context menu extension, named "DiE," adds a custom menu item to the Windows Explorer context menu for selected files.
 
 ## Features
 
-- **Die Command:** The context menu extension provides a "DiE" command that can be triggered on selected files in Windows Explorer.
+- **DiE Command:** The context menu extension provides a "DiE" command that can be triggered on selected files in Windows Explorer.
 
-- **Windows 11 Compatibility:** The "Die" command is conditionally displayed based on the Windows version. It is hidden on Windows 11 or later, while on earlier versions, it is shown by default.
-- 
+- **Windows 11 Compatibility:** The "DiE" command is conditionally displayed based on the Windows version. It is hidden on Windows 11 or later, while on earlier versions, it is shown by default.
+
 - **Powered by Detect It Easy:** The project incorporates functionality from "Detect It Easy" by Horsicq. [Link to Detect It Easy GitHub Repository](https://github.com/horsicq/DIE-engine)
 
 
