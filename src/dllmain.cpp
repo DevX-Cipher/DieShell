@@ -85,12 +85,12 @@ public:
 
   IFACEMETHODIMP GetTitle(_In_opt_ IShellItemArray* items, _Outptr_result_nullonfailure_ PWSTR* name) {
     *name = nullptr;
-    size_t titleLen = wcslen(L"Die") + 1;
+    size_t titleLen = wcslen(L"Detect It Easy") + 1;
     *name = (PWSTR)CoTaskMemAlloc(titleLen * sizeof(WCHAR));
     if (!*name) {
       return E_OUTOFMEMORY;
     }
-    wcscpy_s(*name, titleLen, L"Die");
+    wcscpy_s(*name, titleLen, L"Detect It Easy");
     return S_OK;
   }
 
