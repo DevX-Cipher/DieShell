@@ -27,6 +27,43 @@ if '%errorlevel%' NEQ '0' (
     CD /D "%~dp0"
 :--------------------------------------
 
+:: Step 1: Get Windows Kits root path
+for /f "tokens=3*" %%A in ('reg query "HKLM\SOFTWARE\Microsoft\Windows Kits\Installed Roots" /v KitsRoot10 2^>nul') do (
+    set "kitsroot=%%A %%B"
+)
+
+if not defined kitsroot (
+    echo [ERROR] Windows 10 SDK not found.
+    exit /b 1
+)
+
+:: Step 2: Find latest version with both tools
+set "MAKEAPPX_PATH="
+set "SIGNTOOL_PATH="
+
+for /f "delims=" %%D in ('dir /b /ad "%kitsroot%\bin" ^| sort /r') do (
+    if exist "%kitsroot%\bin\%%D\x64\makeappx.exe" if exist "%kitsroot%\bin\%%D\x64\signtool.exe" (
+        set "MAKEAPPX_PATH=%kitsroot%\bin\%%D\x64\makeappx.exe"
+        set "SIGNTOOL_PATH=%kitsroot%\bin\%%D\x64\signtool.exe"
+        goto :found_tools
+    )
+)
+
+:found_tools
+if not defined MAKEAPPX_PATH (
+    echo [ERROR] makeappx.exe not found.
+    exit /b 1
+)
+if not defined SIGNTOOL_PATH (
+    echo [ERROR] signtool.exe not found.
+    exit /b 1
+)
+
+echo Found makeappx.exe: [%MAKEAPPX_PATH%]
+echo Found signtool.exe: [%SIGNTOOL_PATH%]
+
+
+
 set DOWNLOAD_URL=https://github.com/horsicq/DIE-engine/releases/download/3.10/die_win64_portable_3.10_x64.zip
 set DOWNLOAD_FILE=die_win64_portable_3.10_x64.zip
 set EXTRACT_FOLDER=Die
@@ -44,10 +81,6 @@ tar -xf %DOWNLOAD_FILE% -C %EXTRACT_FOLDER%\\%INNER_FOLDER%
 echo Cleanup: Removing downloaded ZIP file...
 del %DOWNLOAD_FILE%
 
-echo Process completed.
-set DOWNLOAD_URL=https://github.com/horsicq/die_library/releases/download/Beta/dielib_win64_portable_0.1.0_x64.zip
-set DOWNLOAD_FILE=dielib_win64_portable_0.1.0_x64.zip
-
 :CheckFiles
 echo Checking if DieShell.dll exists...
 if exist %EXTRACT_FOLDER%\\%INNER_FOLDER%\\DieShell.dll (
@@ -56,24 +89,6 @@ if exist %EXTRACT_FOLDER%\\%INNER_FOLDER%\\DieShell.dll (
     echo DieShell.dll not found. Make sure DieShell.dll is in the directory Die\\Die.
     pause
     goto CheckFiles
-)
-
-echo Checking if die.dll exists...
-if exist %EXTRACT_FOLDER%\\%INNER_FOLDER%\\die.dll (
-    echo die.dll found.
-) else (
- echo die.dll not found. Downloading die.dll...
-
-echo Downloading %DOWNLOAD_FILE%...
-curl -LJO %DOWNLOAD_URL%
-tar -xf %DOWNLOAD_FILE% --noanchored 'die.dll' -C %EXTRACT_FOLDER%\\%INNER_FOLDER%
-del %DOWNLOAD_FILE%
-    if exist %EXTRACT_FOLDER%\\%INNER_FOLDER%\\die.dll (
-        echo die.dll downloaded and extracted successfully.
-    ) else (
-        echo Failed to download or extract die.dll. Please check the download URL and extraction path.
-        pause
-    )
 )
 
 powershell -Command "New-SelfSignedCertificate -Type Custom -Subject 'CN=Die' -KeyUsage DigitalSignature -FriendlyName 'SelfSignCert' -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')"
@@ -96,7 +111,12 @@ certutil -delstore My %thumbprint%
 powershell -Command "Remove-Item -Path Cert:\CurrentUser\My\%thumbprint%"
 
 :: Run the makeappx.exe command and redirect output to a log file
-"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makeappx.exe" pack /d Die/ /p Die.msix /nv
+echo Packing MSIX...
+"%MAKEAPPX_PATH%" pack /d "%EXTRACT_FOLDER%" /p Die.msix /nv
+if errorlevel 1 (
+    echo [ERROR] Failed to create MSIX.
+    exit /b 1
+)
 
 set /p PASSWORD="Enter the password for the .pfx file: "
 
@@ -110,8 +130,12 @@ for /R %DIRECTORY% %%F in (*.msix) do (
     set MSIX_PATH="%%F"
 )
 
-"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22000.0\x64\signtool.exe" sign /fd SHA256 /a /f %PFX_PATH% /p %PASSWORD% %MSIX_PATH%
-
+echo Signing MSIX...
+"%SIGNTOOL_PATH%" sign /fd SHA256 /a /f "Die.pfx" /p %password% "Die.msix"
+if errorlevel 1 (
+    echo [ERROR] Failed to sign MSIX.
+    exit /b 1
+)
 :: Import the certificate
 set "batch_dir=%~dp0"
 
