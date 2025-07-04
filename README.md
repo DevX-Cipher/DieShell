@@ -40,7 +40,6 @@ If you have other feature suggestions or ideas, please share them with the commu
 ## Dependencies
 
 - Microsoft Windows Runtime Library (WinRT)
-- Windows Imaging Component (WIC)
 
 ## License
 
