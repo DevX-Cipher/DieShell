@@ -224,8 +224,8 @@ RMDIR /S /q "obj/"
 RMDIR /S /q "Die/Die"
 
 :: Step 10: Install MSIX
-set /p user_input="Do you want to install the package manually? (yes/no): "
-if /I "%user_input%" EQU "yes" (
+set /p user_input="Do you want to install the package manually? (y/n): "
+if /I "%user_input%" EQU "y" (
     echo Please install the package manually.
 ) else (
     echo Installing...
