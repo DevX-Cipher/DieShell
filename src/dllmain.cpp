@@ -206,10 +206,8 @@ public:
       return hr;
     }
 
-    // Debug: Display the file path in a message box
     std::wstring message = L"File path: " + std::wstring(filePath);
 
-    // Get the directory containing the DLL as the base path for Die.exe
     wchar_t dllDirectory[MAX_PATH];
     if (!GetModuleFileName(g_hModule, dllDirectory, MAX_PATH)) {
       CoTaskMemFree(filePath);
@@ -217,21 +215,17 @@ public:
     }
     PathRemoveFileSpec(dllDirectory);
 
-    // Construct the full path to Die.exe
     std::wstring dieExePath = std::wstring(dllDirectory) + L"\\Die.exe";
 
-    // Check if Die.exe exists
     if (GetFileAttributes(dieExePath.c_str()) == INVALID_FILE_ATTRIBUTES) {
       CoTaskMemFree(filePath);
       MessageBox(nullptr, L"Die.exe not found", L"Error", MB_OK | MB_ICONERROR);
       return E_FAIL;
     }
 
-    // Prepare the command-line argument (file path)
     std::wstring commandLineArgs = L"\"" + std::wstring(filePath) + L"\"";
     CoTaskMemFree(filePath);
 
-    // Launch Die.exe
     if (!ShellExecute(nullptr, L"open", dieExePath.c_str(), commandLineArgs.c_str(), nullptr, SW_SHOWNORMAL)) {
       MessageBox(nullptr, L"Failed to execute Die.exe", L"Error", MB_OK | MB_ICONERROR);
       return E_FAIL;
@@ -244,7 +238,6 @@ public:
   IFACEMETHODIMP GetFlags(_Out_ EXPCMDFLAGS* flags) { *flags = ECF_DEFAULT; return S_OK; }
   IFACEMETHODIMP EnumSubCommands(_COM_Outptr_ IEnumExplorerCommand** enumCommands) { *enumCommands = nullptr; return E_NOTIMPL; }
 
-  // IObjectWithSite methods
   IFACEMETHODIMP SetSite(_In_ IUnknown* site) noexcept { m_site = site; return S_OK; }
   IFACEMETHODIMP GetSite(_In_ REFIID riid, _COM_Outptr_ void** site) noexcept { return m_site.CopyTo(riid, site); }
 
