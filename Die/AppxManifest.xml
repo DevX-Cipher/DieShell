@@ -18,6 +18,8 @@
   </Resources>
   <Capabilities>
     <Capability Name="internetClient"/>
+    <Capability Name="privateNetworkClientServer"/>
+    <rescap:Capability Name="broadFileSystemAccess"/>
     <rescap:Capability Name="runFullTrust"/>
   </Capabilities>
   
