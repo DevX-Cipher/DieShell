@@ -133,8 +133,8 @@ echo Found makeappx.exe: [%MAKEAPPX_PATH%]
 echo Found signtool.exe: [%SIGNTOOL_PATH%]
 
 :: Step 4: Download and extract DIE-engine
-set DOWNLOAD_URL=https://github.com/horsicq/DIE-engine/releases/download/3.10/die_win64_portable_3.10_x64.zip
-set DOWNLOAD_FILE=die_win64_portable_3.10_x64.zip
+set DOWNLOAD_URL=https://github.com/horsicq/DIE-engine/releases/download/Beta/die_win64_portable_3.11_x64.zip
+set DOWNLOAD_FILE=die_win64_portable_3.11_x64.zip
 
 echo Creating folders %EXTRACT_FOLDER%...
 if not exist %EXTRACT_FOLDER% mkdir %EXTRACT_FOLDER%
