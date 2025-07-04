@@ -1,4 +1,5 @@
 @echo off
+
 :: BatchGotAdmin
 :-------------------------------------
 REM  --> Check for permissions
@@ -17,7 +18,6 @@ if '%errorlevel%' NEQ '0' (
 :UACPrompt
     echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadmin.vbs"
     echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadmin.vbs"
-
     "%temp%\getadmin.vbs"
     exit /B
 
@@ -27,7 +27,77 @@ if '%errorlevel%' NEQ '0' (
     CD /D "%~dp0"
 :--------------------------------------
 
-:: Step 1: Get Windows Kits root path
+:: Step 1: Compile the DLL
+:: Set variables for DLL compilation
+set SOURCE_FILE=src\dllmain.cpp
+set OUTPUT_DIR=bin
+set OBJ_DIR=obj
+set DLL_NAME=DieShell.dll
+
+:: Ensure output directories exist
+if not exist %OUTPUT_DIR% mkdir %OUTPUT_DIR%
+if not exist %OBJ_DIR% mkdir %OBJ_DIR%
+
+:: Find vswhere.exe
+set VSWHERE="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist %VSWHERE% (
+    echo Error: vswhere.exe not found. Ensure Visual Studio 2017 or later is installed.
+    exit /b 1
+)
+
+:: Find Visual Studio installation
+for /f "tokens=*" %%i in ('%VSWHERE% -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath') do set VSINSTALL=%%i
+if not defined VSINSTALL (
+    echo Error: No Visual Studio installation found.
+    exit /b 1
+)
+
+set VCVARSALL="%VSINSTALL%\VC\Auxiliary\Build\vcvarsall.bat"
+if not exist %VCVARSALL% (
+    echo Error: vcvarsall.bat not found at %VCVARSALL%.
+    exit /b 1
+)
+
+:: Set up Visual Studio environment for x64
+echo Setting up Visual Studio environment...
+call %VCVARSALL% x64
+if %ERRORLEVEL% neq 0 (
+    echo Error: Failed to set up Visual Studio environment.
+    exit /b %ERRORLEVEL%
+)
+
+:: Compile the DLL with Unicode definitions, required libraries, and object file output to obj folder
+echo Compiling %SOURCE_FILE% to %OUTPUT_DIR%\%DLL_NAME% with object file in %OBJ_DIR%...
+cl /nologo /LD /DUNICODE /D_UNICODE /Fo:%OBJ_DIR%\ /Fe:%OUTPUT_DIR%\%DLL_NAME% %SOURCE_FILE% /link /MACHINE:X64 user32.lib shell32.lib shlwapi.lib runtimeobject.lib
+if %ERRORLEVEL% neq 0 (
+    echo Error: Compilation failed.
+    exit /b %ERRORLEVEL%
+)
+
+echo Build successful: %OUTPUT_DIR%\%DLL_NAME%
+echo Object file generated in: %OBJ_DIR%
+
+:: Move the compiled DLL to the Die\Die directory
+set EXTRACT_FOLDER=Die
+set INNER_FOLDER=Die
+if not exist %EXTRACT_FOLDER%\%INNER_FOLDER% mkdir %EXTRACT_FOLDER%\%INNER_FOLDER%
+echo Moving %DLL_NAME% to %EXTRACT_FOLDER%\%INNER_FOLDER%...
+move %OUTPUT_DIR%\%DLL_NAME% %EXTRACT_FOLDER%\%INNER_FOLDER%\%DLL_NAME%
+if %ERRORLEVEL% neq 0 (
+    echo Error: Failed to move %DLL_NAME% to %EXTRACT_FOLDER%\%INNER_FOLDER%.
+    exit /b %ERRORLEVEL%
+)
+
+:: Delete the source directory if empty
+echo Deleting source directory %OUTPUT_DIR%...
+rd /s /q %OUTPUT_DIR%
+if %ERRORLEVEL% neq 0 (
+    echo Warning: Failed to delete %OUTPUT_DIR%. It may not be empty or in use.
+) else (
+    echo Successfully deleted %OUTPUT_DIR%.
+)
+
+:: Step 2: Get Windows Kits root path
 for /f "tokens=3*" %%A in ('reg query "HKLM\SOFTWARE\Microsoft\Windows Kits\Installed Roots" /v KitsRoot10 2^>nul') do (
     set "kitsroot=%%A %%B"
 )
@@ -37,7 +107,7 @@ if not defined kitsroot (
     exit /b 1
 )
 
-:: Step 2: Find latest version with both tools
+:: Step 3: Find latest version with both tools
 set "MAKEAPPX_PATH="
 set "SIGNTOOL_PATH="
 
@@ -62,35 +132,34 @@ if not defined SIGNTOOL_PATH (
 echo Found makeappx.exe: [%MAKEAPPX_PATH%]
 echo Found signtool.exe: [%SIGNTOOL_PATH%]
 
-
-
+:: Step 4: Download and extract DIE-engine
 set DOWNLOAD_URL=https://github.com/horsicq/DIE-engine/releases/download/3.10/die_win64_portable_3.10_x64.zip
 set DOWNLOAD_FILE=die_win64_portable_3.10_x64.zip
-set EXTRACT_FOLDER=Die
-set INNER_FOLDER=Die
 
-echo Creating folders %INNER_FOLDER%...
-mkdir %EXTRACT_FOLDER%\\%INNER_FOLDER%
+echo Creating folders %EXTRACT_FOLDER%...
+if not exist %EXTRACT_FOLDER% mkdir %EXTRACT_FOLDER%
 
 echo Downloading %DOWNLOAD_FILE%...
 curl -LJO %DOWNLOAD_URL%
 
 echo Extracting files...
-tar -xf %DOWNLOAD_FILE% -C %EXTRACT_FOLDER%\\%INNER_FOLDER%
+tar -xf %DOWNLOAD_FILE% -C %EXTRACT_FOLDER%\%INNER_FOLDER%
 
 echo Cleanup: Removing downloaded ZIP file...
 del %DOWNLOAD_FILE%
 
+:: Step 5: Verify DieShell.dll exists
 :CheckFiles
 echo Checking if DieShell.dll exists...
-if exist %EXTRACT_FOLDER%\\%INNER_FOLDER%\\DieShell.dll (
+if exist %EXTRACT_FOLDER%\%INNER_FOLDER%\DieShell.dll (
     echo DieShell.dll found.
 ) else (
-    echo DieShell.dll not found. Make sure DieShell.dll is in the directory Die\\Die.
+    echo DieShell.dll not found in %EXTRACT_FOLDER%\%INNER_FOLDER%.
     pause
     goto CheckFiles
 )
 
+:: Step 6: Create and sign certificate
 powershell -Command "New-SelfSignedCertificate -Type Custom -Subject 'CN=Die' -KeyUsage DigitalSignature -FriendlyName 'SelfSignCert' -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')"
 set /p password="Enter a password for the PFX file: "
 
@@ -139,25 +208,20 @@ if errorlevel 1 (
 :: Import the certificate
 set "batch_dir=%~dp0"
 
-
-:: Remove any existing certificates with the same subject name
+:: Step 9: Import certificate to TrustedPeople store
 for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Subject -eq 'CN=Die' } | Select-Object -ExpandProperty Thumbprint"') do (
     certutil -delstore TrustedPeople %%a
 )
 
-:: Extract the certificate from the MSIX file
 powershell -Command "& { $msixFile = '%MSIX_PATH%'; if (!(Test-Path -Path $msixFile)) { Write-Host 'Error: MSIX file not found.'; exit }; $signature = Get-AuthenticodeSignature -FilePath $msixFile; $certificate = $signature.SignerCertificate; $certificate.Export('Cert') | Set-Content -Encoding Byte 'certificate.cer'; }"
 
-:: Import the certificate to the TrustedPeople store
 certutil -addstore -f TrustedPeople certificate.cer
 
 :: Clean up
 del certificate.cer
-
-:: Delete the .pfx and .cer files
 del "%batch_dir%Die.pfx" /f /q
 
-:: Ask the user if they want to install the package manually
+:: Step 10: Install MSIX
 set /p user_input="Do you want to install the package manually? (yes/no): "
 if /I "%user_input%" EQU "yes" (
     echo Please install the package manually.
@@ -169,5 +233,4 @@ if /I "%user_input%" EQU "yes" (
 :: Wait for 10 seconds
 timeout /t 10
 
-:: End of the script
 exit
