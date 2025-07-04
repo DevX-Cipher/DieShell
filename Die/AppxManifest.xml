@@ -3,7 +3,7 @@
   
   <Identity Name="Die" ProcessorArchitecture="x86" Publisher="CN=Die" Version="3.1.1.0"/>
   <Properties>
-    <DisplayName>Die</DisplayName>
+    <DisplayName>Detect It Easy</DisplayName>
     <PublisherDisplayName>dawgz</PublisherDisplayName>
     <Logo>Assets\die.png</Logo>
   </Properties>
