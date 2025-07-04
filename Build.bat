@@ -220,6 +220,8 @@ certutil -addstore -f TrustedPeople certificate.cer
 :: Clean up
 del certificate.cer
 del "%batch_dir%Die.pfx" /f /q
+RMDIR /S /q "obj/"
+RMDIR /S /q "Die/Die"
 
 :: Step 10: Install MSIX
 set /p user_input="Do you want to install the package manually? (yes/no): "
