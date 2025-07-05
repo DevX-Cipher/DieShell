@@ -1,4 +1,5 @@
 @echo off
+title DieShell Builder
 
 :: BatchGotAdmin
 :-------------------------------------
