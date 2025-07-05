@@ -161,10 +161,10 @@ if exist %EXTRACT_FOLDER%\%INNER_FOLDER%\DieShell.dll (
 )
 
 :: Step 6: Create and sign certificate
-powershell -Command "New-SelfSignedCertificate -Type Custom -Subject 'CN=Die' -KeyUsage DigitalSignature -FriendlyName 'SelfSignCert' -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')"
+powershell -Command "New-SelfSignedCertificate -Type Custom -Subject 'CN=DevX-Cipher' -KeyUsage DigitalSignature -FriendlyName 'SelfSignCert' -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')"
 set /p password="Enter a password for the PFX file: "
 
-for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=Die' } | Select-Object -ExpandProperty Thumbprint"') do (
+for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=DevX-Cipher' } | Select-Object -ExpandProperty Thumbprint"') do (
     set thumbprint=%%a
 )
 
@@ -210,7 +210,7 @@ if errorlevel 1 (
 set "batch_dir=%~dp0"
 
 :: Step 9: Import certificate to TrustedPeople store
-for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Subject -eq 'CN=Die' } | Select-Object -ExpandProperty Thumbprint"') do (
+for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Subject -eq 'CN=DevX-Cipher' } | Select-Object -ExpandProperty Thumbprint"') do (
     certutil -delstore TrustedPeople %%a
 )
 
