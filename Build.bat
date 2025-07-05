@@ -233,7 +233,6 @@ if /I "%user_input%" EQU "y" (
     powershell -Command "Add-AppPackage -Path %MSIX_PATH%"
 )
 
-:: Wait for 10 seconds
-timeout /t 10
-
+echo Press Enter to Exit
+pause
 exit
