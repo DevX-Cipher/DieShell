@@ -1,4 +1,4 @@
-#include <wrl/module.h>
+﻿#include <wrl/module.h>
 #include <wrl/implements.h>
 #include <shobjidl_core.h>
 #include <Shellapi.h>
@@ -75,13 +75,13 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 class DieCommand : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand, IObjectWithSite> {
 public:
 
- /**
- * @brief GetTitle retrieves the title of the context menu item.
- *
- * @param items The selected items in the shell.
- * @param name Output parameter to receive the title.
- * @return HRESULT indicating success or failure.
- */
+  /**
+  * @brief GetTitle retrieves the title of the context menu item.
+  *
+  * @param items The selected items in the shell.
+  * @param name Output parameter to receive the title.
+  * @return HRESULT indicating success or failure.
+  */
 
   IFACEMETHODIMP GetTitle(_In_opt_ IShellItemArray* items, _Outptr_result_nullonfailure_ PWSTR* name) {
     *name = nullptr;
@@ -106,48 +106,52 @@ public:
 
   IFACEMETHODIMP GetIcon(_In_opt_ IShellItemArray* items, _Outptr_result_nullonfailure_ PWSTR* iconPath) {
     *iconPath = nullptr;
+    if (!items) return E_FAIL;
+
+    DWORD count = 0;
+    ComPtr<IShellItem> item;
     PWSTR itemPath = nullptr;
 
-    if (items) {
-      DWORD count;
-      HRESULT hr = items->GetCount(&count);
-      if (FAILED(hr)) {
-        return hr;
-      }
+    if (FAILED(items->GetCount(&count)) || count == 0 ||
+      FAILED(items->GetItemAt(0, &item)) ||
+      FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &itemPath)))
+      return E_FAIL;
 
-      if (count > 0) {
-        ComPtr<IShellItem> item;
-        hr = items->GetItemAt(0, &item);
-        if (FAILED(hr)) {
-          return hr;
-        }
-
-        hr = item->GetDisplayName(SIGDN_FILESYSPATH, &itemPath);
-        if (FAILED(hr)) {
-          return hr;
-        }
-
-        WCHAR modulePath[MAX_PATH];
-        if (GetModuleFileNameW(g_hModule, modulePath, ARRAYSIZE(modulePath))) {
-          PathRemoveFileSpecW(modulePath);
-          StringCchCatW(modulePath, ARRAYSIZE(modulePath), L"\\Die.exe");
-
-          size_t pathLen = wcslen(modulePath) + 1;
-          *iconPath = (PWSTR)CoTaskMemAlloc(pathLen * sizeof(WCHAR));
-          if (!*iconPath) {
-            CoTaskMemFree(itemPath);
-            return E_OUTOFMEMORY;
-          }
-          wcscpy_s(*iconPath, pathLen, modulePath);
-        }
-        CoTaskMemFree(itemPath);
-      }
+    WCHAR modulePath[MAX_PATH];
+    if (!GetModuleFileNameW(g_hModule, modulePath, ARRAYSIZE(modulePath))) {
+      CoTaskMemFree(itemPath);
+      return E_FAIL;
     }
+
+    PathRemoveFileSpecW(modulePath);
+    StringCchCatW(modulePath, ARRAYSIZE(modulePath), L"\\Die.exe");
+
+    size_t len = wcslen(modulePath) + 1;
+    *iconPath = (PWSTR)CoTaskMemAlloc(len * sizeof(WCHAR));
+    if (*iconPath) {
+      wcscpy_s(*iconPath, len, modulePath);
+    }
+
+    CoTaskMemFree(itemPath);
     return *iconPath ? S_OK : E_FAIL;
   }
 
-  IFACEMETHODIMP GetToolTip(_In_opt_ IShellItemArray*, _Outptr_result_nullonfailure_ PWSTR* infoTip) { *infoTip = nullptr; return E_NOTIMPL; }
-  IFACEMETHODIMP GetCanonicalName(_Out_ GUID* guidCommandName) { *guidCommandName = GUID_NULL; return S_OK; }
+  /**
+  * @brief Checks if the foreground window is a common dialog (#32770).
+  *
+  * @param outSuccess Pointer to bool to receive if detection succeeded (true) or failed (false).
+  * @return true if the foreground window is a dialog, false if not.
+  *         If detection fails, returns false and sets *outSuccess to false.
+  */
+
+  bool TryDetectDialogWindow(bool* success) {
+    if (!success) return false;
+
+    HWND hwnd = GetForegroundWindow();
+    wchar_t cls[256];
+    *success = hwnd && IsWindowVisible(hwnd) && GetClassName(hwnd, cls, ARRAYSIZE(cls));
+    return *success && wcscmp(cls, L"#32770") == 0;
+  }
 
   /**
   * @brief GetState retrieves the state of the context menu item.
@@ -160,8 +164,15 @@ public:
   * @return HRESULT indicating success (S_OK) or failure.
   */
 
-  IFACEMETHODIMP GetState(_In_opt_ IShellItemArray* selection, _In_ BOOL okToBeSlow, _Out_ EXPCMDSTATE* cmdState) {
-    *cmdState = ECS_ENABLED;
+  IFACEMETHODIMP GetState(_In_opt_ IShellItemArray* selection, _In_ BOOL okToBeSlow, _Out_ EXPCMDSTATE* state) {
+    if (!state) return E_POINTER;
+    if (!IsWindowsVersionOrGreater(10, 0, 0) || (selection && okToBeSlow)) {
+      *state = ECS_ENABLED;
+    }
+    else {
+      bool success = false;
+      *state = (TryDetectDialogWindow(&success) || !success) ? ECS_ENABLED : ECS_HIDDEN;
+    }
     return S_OK;
   }
 
@@ -183,50 +194,35 @@ public:
       return E_INVALIDARG;
     }
 
-    DWORD count;
-    HRESULT hr = selection->GetCount(&count);
-    if (FAILED(hr)) {
-      return hr;
-    }
+    DWORD count = 0;
+    ComPtr<IShellItem> item;
+    PWSTR filePath = nullptr;
 
-    if (count == 0) {
+    if (FAILED(selection->GetCount(&count)) || count == 0 ||
+      FAILED(selection->GetItemAt(0, &item)) ||
+      FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &filePath))) {
       MessageBox(nullptr, L"No items to process", L"Debug Info", MB_OK);
       return S_OK;
     }
 
-    ComPtr<IShellItem> item;
-    hr = selection->GetItemAt(0, &item);
-    if (FAILED(hr)) {
-      return hr;
-    }
-
-    PWSTR filePath;
-    hr = item->GetDisplayName(SIGDN_FILESYSPATH, &filePath);
-    if (FAILED(hr)) {
-      return hr;
-    }
-
-    std::wstring message = L"File path: " + std::wstring(filePath);
-
-    wchar_t dllDirectory[MAX_PATH];
-    if (!GetModuleFileName(g_hModule, dllDirectory, MAX_PATH)) {
+    WCHAR dllDir[MAX_PATH];
+    if (!GetModuleFileName(g_hModule, dllDir, MAX_PATH)) {
       CoTaskMemFree(filePath);
       return E_FAIL;
     }
-    PathRemoveFileSpec(dllDirectory);
+    PathRemoveFileSpec(dllDir);
 
-    std::wstring dieExePath = std::wstring(dllDirectory) + L"\\Die.exe";
-
-    if (GetFileAttributes(dieExePath.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    std::wstring dieExe = std::wstring(dllDir) + L"\\Die.exe";
+    if (GetFileAttributes(dieExe.c_str()) == INVALID_FILE_ATTRIBUTES) {
       CoTaskMemFree(filePath);
       MessageBox(nullptr, L"Die.exe not found", L"Error", MB_OK | MB_ICONERROR);
       return E_FAIL;
     }
 
-    std::wstring commandLineArgs = L"\"" + std::wstring(filePath) + L"\"";
+    std::wstring args = L"\"" + std::wstring(filePath) + L"\"";
     CoTaskMemFree(filePath);
 
-    if (!ShellExecute(nullptr, L"open", dieExePath.c_str(), commandLineArgs.c_str(), nullptr, SW_SHOWNORMAL)) {
+    if (!ShellExecute(nullptr, L"open", dieExe.c_str(), args.c_str(), nullptr, SW_SHOWNORMAL)) {
       MessageBox(nullptr, L"Failed to execute Die.exe", L"Error", MB_OK | MB_ICONERROR);
       return E_FAIL;
     }
@@ -234,6 +230,8 @@ public:
     return S_OK;
   }
 
+  IFACEMETHODIMP GetToolTip(_In_opt_ IShellItemArray*, _Outptr_result_nullonfailure_ PWSTR* infoTip) { *infoTip = nullptr; return E_NOTIMPL; }
+  IFACEMETHODIMP GetCanonicalName(_Out_ GUID* guidCommandName) { *guidCommandName = GUID_NULL; return S_OK; }
 
   IFACEMETHODIMP GetFlags(_Out_ EXPCMDFLAGS* flags) { *flags = ECF_DEFAULT; return S_OK; }
   IFACEMETHODIMP EnumSubCommands(_COM_Outptr_ IEnumExplorerCommand** enumCommands) { *enumCommands = nullptr; return E_NOTIMPL; }
@@ -245,11 +243,6 @@ protected:
   ComPtr<IUnknown> m_site;
 };
 
-class __declspec(uuid("7A1E471F-0D43-4122-B1C4-D1AACE76CE9B")) DieCommand1 final : public DieCommand {
-  //Testing
-  //public:
-  //const wchar_t* Title() override { return L"HelloWorld Command1"; }
-  //const EXPCMDSTATE State(_In_opt_ IShellItemArray* selection) override { return ECS_DISABLED; }
-};
+class __declspec(uuid("7A1E471F-0D43-4122-B1C4-D1AACE76CE9B")) DieCommand1 final : public DieCommand {};
 
 CoCreatableClass(DieCommand1)
