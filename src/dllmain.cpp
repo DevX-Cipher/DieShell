@@ -137,6 +137,27 @@ public:
   }
 
   /**
+  * @brief Retrieves the real Windows OS version using the undocumented RtlGetVersion function.
+  *
+  * This avoids the issues with GetVersionEx being affected by application manifests.
+  * RtlGetVersion gives accurate OS version info, even on newer Windows versions.
+  *
+  * @param lpVersionInformation Pointer to an RTL_OSVERSIONINFOW structure that receives the version info.
+  * @return Returns 0 (STATUS_SUCCESS) on success, or -1 on failure.
+  */
+
+  LONG GetRealOSVersion(PRTL_OSVERSIONINFOW lpVersionInformation) {
+    HMODULE hMod = ::GetModuleHandleW(L"ntdll.dll");
+    if (hMod) {
+      RtlGetVersionPtr fn = (RtlGetVersionPtr)::GetProcAddress(hMod, "RtlGetVersion");
+      if (fn != nullptr) {
+        return fn(lpVersionInformation);
+      }
+    }
+    return -1;
+  }
+
+  /**
   * @brief Checks if the foreground window is a common dialog (#32770).
   *
   * @param outSuccess Pointer to bool to receive if detection succeeded (true) or failed (false).
@@ -144,7 +165,7 @@ public:
   *         If detection fails, returns false and sets *outSuccess to false.
   */
 
-  bool TryDetectDialogWindow(bool* success) {
+  bool DialogWindow(bool* success) {
     if (!success) return false;
 
     HWND hwnd = GetForegroundWindow();
@@ -166,13 +187,24 @@ public:
 
   IFACEMETHODIMP GetState(_In_opt_ IShellItemArray* selection, _In_ BOOL okToBeSlow, _Out_ EXPCMDSTATE* state) {
     if (!state) return E_POINTER;
-    if (!IsWindowsVersionOrGreater(10, 0, 0) || (selection && okToBeSlow)) {
+
+    RTL_OSVERSIONINFOW osvi = { sizeof(osvi) };
+    if (GetRealOSVersion(&osvi) != 0) {
+      *state = ECS_ENABLED;
+      return S_OK;
+    }
+
+    if (osvi.dwMajorVersion < 10 || osvi.dwBuildNumber < 22000) {
+      *state = ECS_ENABLED;
+    }
+    else if (selection && okToBeSlow) {
       *state = ECS_ENABLED;
     }
     else {
       bool success = false;
-      *state = (TryDetectDialogWindow(&success) || !success) ? ECS_ENABLED : ECS_HIDDEN;
+      *state = (DialogWindow(&success) || !success) ? ECS_ENABLED : ECS_HIDDEN;
     }
+
     return S_OK;
   }
 
