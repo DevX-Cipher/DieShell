@@ -10,6 +10,8 @@
 
 using namespace Microsoft::WRL;
 HMODULE g_hModule = nullptr;
+typedef LONG(WINAPI* RtlGetVersionPtr)(PRTL_OSVERSIONINFOW);
+
 
 /**
  * @brief The pragma directives below are used to instruct the linker to export the specified functions
@@ -76,6 +78,63 @@ class DieCommand : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerC
 public:
 
   /**
+  * @brief Checks if the foreground window is a visible standard dialog (#32770).
+  *
+  * @param[out] success Set to true if the foreground window is a dialog; false otherwise.
+  * @return true if the window is a dialog and success is set; false otherwise.
+  */
+
+  bool DialogWindow(bool* success) {
+    if (!success) return false;
+
+    HWND hwnd = GetForegroundWindow();
+    wchar_t cls[256];
+    *success = hwnd && IsWindowVisible(hwnd) && GetClassName(hwnd, cls, ARRAYSIZE(cls));
+    return *success && wcscmp(cls, L"#32770") == 0;
+  }
+
+  /**
+  * @brief Gets the file system path of the first item in a shell item array.
+  *
+  * @param[in] selection Shell item array to query.
+  * @param[out] outFilePath Receives the file path string (caller must free).
+  * @return S_OK on success, error code otherwise.
+  */
+
+  HRESULT GetFilePath(IShellItemArray* selection, PWSTR* outFilePath) {
+    if (!selection || !outFilePath) return E_INVALIDARG;
+
+    DWORD count = 0;
+    Microsoft::WRL::ComPtr<IShellItem> item;
+
+    if (FAILED(selection->GetCount(&count)) || count == 0 ||
+      FAILED(selection->GetItemAt(0, &item)) ||
+      FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, outFilePath))) {
+      return E_FAIL;
+    }
+
+    return S_OK;
+  }
+
+  /**
+  * @brief Retrieves the real OS version using RtlGetVersion from ntdll.dll.
+  *
+  * @param[out] lpVersionInformation Receives the OS version info.
+  * @return Result from RtlGetVersion, or -1 if unavailable.
+  */
+
+  LONG GetRealOSVersion(PRTL_OSVERSIONINFOW lpVersionInformation) {
+    HMODULE hMod = ::GetModuleHandleW(L"ntdll.dll");
+    if (hMod) {
+      RtlGetVersionPtr fn = (RtlGetVersionPtr)::GetProcAddress(hMod, "RtlGetVersion");
+      if (fn != nullptr) {
+        return fn(lpVersionInformation);
+      }
+    }
+    return -1;
+  }
+
+  /**
   * @brief GetTitle retrieves the title of the context menu item.
   *
   * @param items The selected items in the shell.
@@ -106,16 +165,12 @@ public:
 
   IFACEMETHODIMP GetIcon(_In_opt_ IShellItemArray* items, _Outptr_result_nullonfailure_ PWSTR* iconPath) {
     *iconPath = nullptr;
-    if (!items) return E_FAIL;
+    if (!items || !iconPath) return E_FAIL;
 
-    DWORD count = 0;
-    ComPtr<IShellItem> item;
     PWSTR itemPath = nullptr;
-
-    if (FAILED(items->GetCount(&count)) || count == 0 ||
-      FAILED(items->GetItemAt(0, &item)) ||
-      FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &itemPath)))
+    if (FAILED(GetFilePath(items, &itemPath))) {
       return E_FAIL;
+    }
 
     WCHAR modulePath[MAX_PATH];
     if (!GetModuleFileNameW(g_hModule, modulePath, ARRAYSIZE(modulePath))) {
@@ -137,44 +192,6 @@ public:
   }
 
   /**
-  * @brief Retrieves the real Windows OS version using the undocumented RtlGetVersion function.
-  *
-  * This avoids the issues with GetVersionEx being affected by application manifests.
-  * RtlGetVersion gives accurate OS version info, even on newer Windows versions.
-  *
-  * @param lpVersionInformation Pointer to an RTL_OSVERSIONINFOW structure that receives the version info.
-  * @return Returns 0 (STATUS_SUCCESS) on success, or -1 on failure.
-  */
-
-  LONG GetRealOSVersion(PRTL_OSVERSIONINFOW lpVersionInformation) {
-    HMODULE hMod = ::GetModuleHandleW(L"ntdll.dll");
-    if (hMod) {
-      RtlGetVersionPtr fn = (RtlGetVersionPtr)::GetProcAddress(hMod, "RtlGetVersion");
-      if (fn != nullptr) {
-        return fn(lpVersionInformation);
-      }
-    }
-    return -1;
-  }
-
-  /**
-  * @brief Checks if the foreground window is a common dialog (#32770).
-  *
-  * @param outSuccess Pointer to bool to receive if detection succeeded (true) or failed (false).
-  * @return true if the foreground window is a dialog, false if not.
-  *         If detection fails, returns false and sets *outSuccess to false.
-  */
-
-  bool DialogWindow(bool* success) {
-    if (!success) return false;
-
-    HWND hwnd = GetForegroundWindow();
-    wchar_t cls[256];
-    *success = hwnd && IsWindowVisible(hwnd) && GetClassName(hwnd, cls, ARRAYSIZE(cls));
-    return *success && wcscmp(cls, L"#32770") == 0;
-  }
-
-  /**
   * @brief GetState retrieves the state of the context menu item.
   *
   * This method determines the state of the context menu item based on the provided selection and system conditions.
@@ -185,26 +202,19 @@ public:
   * @return HRESULT indicating success (S_OK) or failure.
   */
 
-  IFACEMETHODIMP GetState(_In_opt_ IShellItemArray* selection, _In_ BOOL okToBeSlow, _Out_ EXPCMDSTATE* state) {
+  IFACEMETHODIMP GetState(IShellItemArray* selection, BOOL okToBeSlow, EXPCMDSTATE* state) {
     if (!state) return E_POINTER;
 
-    RTL_OSVERSIONINFOW osvi = { sizeof(osvi) };
-    if (GetRealOSVersion(&osvi) != 0) {
-      *state = ECS_ENABLED;
-      return S_OK;
-    }
+    RTL_OSVERSIONINFOW osvi{ sizeof(osvi) };
+    bool legacyUI = GetRealOSVersion(&osvi) != 0 || osvi.dwMajorVersion < 10 || osvi.dwBuildNumber < 22000;
+    bool isShiftHeld = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
 
-    if (osvi.dwMajorVersion < 10 || osvi.dwBuildNumber < 22000) {
-      *state = ECS_ENABLED;
-    }
-    else if (selection && okToBeSlow) {
-      *state = ECS_ENABLED;
-    }
-    else {
+    bool enable = legacyUI || (okToBeSlow && selection) || isShiftHeld;
+    if (!enable) {
       bool success = false;
-      *state = (DialogWindow(&success) || !success) ? ECS_ENABLED : ECS_HIDDEN;
+      enable = DialogWindow(&success) || !success;
     }
-
+    *state = enable ? ECS_ENABLED : ECS_HIDDEN;
     return S_OK;
   }
 
@@ -221,19 +231,8 @@ public:
   */
 
   IFACEMETHODIMP Invoke(_In_opt_ IShellItemArray* selection, _In_opt_ IBindCtx*) {
-    if (!selection) {
-      MessageBox(nullptr, L"Invalid argument", L"Debug Info", MB_OK);
-      return E_INVALIDARG;
-    }
-
-    DWORD count = 0;
-    ComPtr<IShellItem> item;
     PWSTR filePath = nullptr;
-
-    if (FAILED(selection->GetCount(&count)) || count == 0 ||
-      FAILED(selection->GetItemAt(0, &item)) ||
-      FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &filePath))) {
-      MessageBox(nullptr, L"No items to process", L"Debug Info", MB_OK);
+    if (FAILED(GetFilePath(selection, &filePath))) {
       return S_OK;
     }
 
@@ -247,7 +246,6 @@ public:
     std::wstring dieExe = std::wstring(dllDir) + L"\\Die.exe";
     if (GetFileAttributes(dieExe.c_str()) == INVALID_FILE_ATTRIBUTES) {
       CoTaskMemFree(filePath);
-      MessageBox(nullptr, L"Die.exe not found", L"Error", MB_OK | MB_ICONERROR);
       return E_FAIL;
     }
 
@@ -255,7 +253,6 @@ public:
     CoTaskMemFree(filePath);
 
     if (!ShellExecute(nullptr, L"open", dieExe.c_str(), args.c_str(), nullptr, SW_SHOWNORMAL)) {
-      MessageBox(nullptr, L"Failed to execute Die.exe", L"Error", MB_OK | MB_ICONERROR);
       return E_FAIL;
     }
 
@@ -278,3 +275,4 @@ protected:
 class __declspec(uuid("7A1E471F-0D43-4122-B1C4-D1AACE76CE9B")) DieCommand1 final : public DieCommand {};
 
 CoCreatableClass(DieCommand1)
+
