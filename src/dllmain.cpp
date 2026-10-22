@@ -179,7 +179,7 @@ public:
     }
 
     PathRemoveFileSpecW(modulePath);
-    StringCchCatW(modulePath, ARRAYSIZE(modulePath), L"\\Die.exe");
+    StringCchCatW(modulePath, ARRAYSIZE(modulePath), L"\\cdie_gui.exe");
 
     size_t len = wcslen(modulePath) + 1;
     *iconPath = (PWSTR)CoTaskMemAlloc(len * sizeof(WCHAR));
@@ -243,7 +243,7 @@ public:
     }
     PathRemoveFileSpec(dllDir);
 
-    std::wstring dieExe = std::wstring(dllDir) + L"\\Die.exe";
+    std::wstring dieExe = std::wstring(dllDir) + L"\\cdie_gui.exe";
     if (GetFileAttributes(dieExe.c_str()) == INVALID_FILE_ATTRIBUTES) {
       CoTaskMemFree(filePath);
       return E_FAIL;
